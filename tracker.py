@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 
 
+# Class to store the game build info from the FileHeader event
 class GameInfo:
     def __init__(self, obj):
         self.game_version = obj["gameversion"]
@@ -13,6 +14,7 @@ class GameInfo:
         self.part = obj["part"]
 
 
+# Class to store Commander information from the LoadGame event
 class SaveInfo:
     def __init__(self, obj):
         self.username = obj["Commander"]
@@ -22,6 +24,7 @@ class SaveInfo:
         self.credits = obj["Credits"]
 
 
+# Class to store bounty information from the Bounty event
 class Bounty:
     def __init__(self, obj):
         self.target_ship = obj.get("Target_Localised", obj["Target"].title())
@@ -29,6 +32,7 @@ class Bounty:
         self.total_reward = obj["TotalReward"]
 
 
+# Class to store massacre mission information from the MissionAccepted event
 class MassacreMission:
     def __init__(self, obj, current_kills=0):
         if obj["Name"] == "Mission_MassacreWing" or obj["Name"] == "Mission_Massacre":
@@ -44,45 +48,47 @@ class MassacreMission:
             raise ValueError("Mission is not a massacre mission")
 
 
+# Class to store information about your current overall progress with your massacre missions
 class MissionLog:
     def __init__(self):
-        self.active_missions = []
-        self.completed_missions = []
-        self.current_kills = 0
-        self.current_target_kills = 0
-        self.total_bounties = 0
-        self.target_faction = ""
+        self.active_missions = [] # A list of MassacreMission objects, populated by new_mission()
+        self.completed_missions = [] # A list of MassacreMission objects, populated when active missions are completed in new_kill()
+        self.current_kills = 0 # Current sesssion bounty kills (including non-target)
+        self.current_target_kills = 0 # Current session target bounty kills
+        self.total_bounties = 0 # Total bounty reward CR
+        self.target_faction = "" # Massacre mission set target faction
 
     def new_mission(self, mission):
-        if self.target_faction == "":
+        if self.target_faction == "": # Set the target faction for the session
             self.target_faction = mission.target_faction
 
-        if mission.target_faction != self.target_faction:
+        if mission.target_faction != self.target_faction: # Check the new mission's target faction matches
             raise ValueError("New mission's target faction does not match the rest")
 
-        self.active_missions.append(mission)
+        self.active_missions.append(mission) # Add the new mission to the active list
         self.active_missions.sort(key=lambda x: (x.source_faction, x.collected_at)) # Sort the list by source faction and then by collection time
         # TODO: Is the sort for collected_at in the correct order?
 
     def new_kill(self, bounty):
         if bounty.victim_faction == self.target_faction: # If the victim's faction is the target faction, count the kill towards missions
             faction_check = [] # List to make sure we are only counting the kill once for each faction
-            to_remove = []
+            to_remove = [] # List of missions to remove from the active list after the below loop is completed (separate list stops the weird kill count desync issue)
             for mission in self.active_missions:
                     if mission.source_faction not in faction_check: # Check we aren't counting kills that don't stack
                         mission.current_kills += 1
                         faction_check.append(mission.source_faction) # Add the faction to the list to stop the kill being counted towards other missions for the same faction
                         if mission.current_kills == mission.kill_goal: # If we have reached the kill goal, move the mission from active_missions to completed_missions
-                            self.completed_missions.append(mission)
-                            to_remove.append(mission)
+                            self.completed_missions.append(mission) # Mission is now completed so append it to the completed_missions list
+                            to_remove.append(mission) # Queue the mission for removal from the active_missions list
                             
             for mission in to_remove:
-                self.active_missions.remove(mission)
+                self.active_missions.remove(mission) # Delete newly completed missions from active_missions
 
             self.current_target_kills += 1
         self.total_bounties += bounty.total_reward
         self.current_kills += 1
 
+    # Get the unique source factions from active and completed missions
     def get_unique_factions(self):
         all_missions = self.active_missions + self.completed_missions
         factions = [mission.source_faction for mission in all_missions]
@@ -90,6 +96,7 @@ class MissionLog:
         facitons_unique.sort()
         return facitons_unique
 
+    # Calculate the total kills required to complete all stacked missions
     def get_required_kills(self):
         kills_by_faction = {}
         all_missions = self.active_missions + self.completed_missions
@@ -104,10 +111,12 @@ class MissionLog:
         return max_kills
 
 
+# Parse the timestamps from the journal into datetime objects
 def parse_timestamp(timestamp_str):
     return datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
 
 
+# Print information to screen
 def draw_screen(save_info, mission_log):
     term_size = shutil.get_terminal_size()
     os.system("cls")
@@ -121,6 +130,7 @@ def draw_screen(save_info, mission_log):
     print(f"Total Bounties: {mission_log.total_bounties} CR")
 
 
+# Generator to return lines from the journal
 def follow_journal(fp, poll_rate):
     while True:
         line = fp.readline()
@@ -131,6 +141,7 @@ def follow_journal(fp, poll_rate):
             yield line
 
 
+# Parse a line of the journal (JSON object)
 def parse_journal_line(line):
     obj = json.loads(line)
     obj_event = obj["event"].lower()
@@ -151,7 +162,7 @@ def main():
     poll_rate = 0.1
     journal_path = "testdata/test2.log"
     
-    mission_log = MissionLog()
+    mission_log = MissionLog() # Initialise a new mission log
 
     try:
         with open(journal_path, "r") as fp:
