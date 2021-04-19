@@ -67,14 +67,19 @@ class MissionLog:
     def new_kill(self, bounty):
         if bounty.victim_faction == self.target_faction: # If the victim's faction is the target faction, count the kill towards missions
             faction_check = [] # List to make sure we are only counting the kill once for each faction
+            to_remove = []
             for mission in self.active_missions:
                     if mission.source_faction not in faction_check: # Check we aren't counting kills that don't stack
                         mission.current_kills += 1
                         faction_check.append(mission.source_faction) # Add the faction to the list to stop the kill being counted towards other missions for the same faction
                         if mission.current_kills == mission.kill_goal: # If we have reached the kill goal, move the mission from active_missions to completed_missions
                             self.completed_missions.append(mission)
-                            self.active_missions.remove(mission)
-            self.current_target_kills += 1 # TODO: Weirdness with this
+                            to_remove.append(mission)
+                            
+            for mission in to_remove:
+                self.active_missions.remove(mission)
+
+            self.current_target_kills += 1
         self.total_bounties += bounty.total_reward
         self.current_kills += 1
 
@@ -112,10 +117,8 @@ def draw_screen(save_info, mission_log):
     print(f"Source Faction Count: {len(mission_log.get_unique_factions())}")
     print(f"Mission Progress: {len(mission_log.completed_missions)}/{len(mission_log.active_missions + mission_log.completed_missions)}")
     print(f"Mission Kill Progress: {mission_log.current_target_kills}/{mission_log.get_required_kills()}")
-    print(f"Mission Reward Progress: {sum([mission.reward for mission in mission_log.completed_missions])} CR/{sum([mission.reward for mission in mission_log.completed_missions] + [mission.reward for mission in mission_log.active_missions])} CR")
     print(f"Total Kills: {mission_log.current_kills}")
     print(f"Total Bounties: {mission_log.total_bounties} CR")
-    time.sleep(0.2)
 
 
 def follow_journal(fp, poll_rate):
@@ -146,8 +149,7 @@ def parse_journal_line(line):
 
 def main():
     poll_rate = 0.1
-    journal_name = "Journal.210408224110.01.log"
-    journal_path = os.path.join(os.getenv("homepath"), "Saved Games/Frontier Developments/Elite Dangerous", journal_name)
+    journal_path = "testdata/test2.log"
     
     mission_log = MissionLog()
 
@@ -169,7 +171,7 @@ def main():
                         mission_log.new_kill(ret)
                         draw_screen(save_info, mission_log)
                     elif ret == "shutdown": # DEBUG
-                        print("EOF")
+                        print("\n\nSHUTDOWN DETECTED - GOODBYE!")
                     else:
                         pass
                     
