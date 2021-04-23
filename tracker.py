@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import shutil
@@ -122,12 +123,26 @@ def draw_screen(save_info, mission_log):
     os.system("cls")
     
     welcome_msg = f"##########     Welcome CMDR {save_info.username}     ##########"
-    print(welcome_msg.center(term_size.columns))
+    print(f"\n{welcome_msg.center(term_size.columns)}\n")
     print(f"Source Faction Count: {len(mission_log.get_unique_factions())}")
     print(f"Mission Progress: {len(mission_log.completed_missions)}/{len(mission_log.active_missions + mission_log.completed_missions)}")
     print(f"Mission Kill Progress: {mission_log.current_target_kills}/{mission_log.get_required_kills()}")
     print(f"Total Kills: {mission_log.current_kills}")
     print(f"Total Bounties: {mission_log.total_bounties} CR")
+    print(f"\n\nSource Factions:")
+    for faction in mission_log.get_unique_factions():
+        print(f"    - {faction}")
+
+
+# Find the currently active journal file
+def find_journal():
+    homepath = os.getenv("homepath")
+    journal_glob = os.path.join(homepath, "Saved Games\\Frontier Developments\\Elite Dangerous\\*")
+    files = glob.glob(journal_glob)
+    files.sort(key=lambda x: -os.stat(x).st_mtime) # Sort files by date modified in descending order (newest first)
+    for file in files:
+        if file.endswith(".log"): # There's a chance a non-journal file was modified most recently, make sure we are only looking at journal files
+            return file
 
 
 # Generator to return lines from the journal
@@ -160,7 +175,8 @@ def parse_journal_line(line):
 
 def main():
     poll_rate = 0.1
-    journal_path = "testdata/test2.log"
+    journal_path = find_journal()
+    # journal_path = "testdata/test2.log" # DEBUG
     
     mission_log = MissionLog() # Initialise a new mission log
 
