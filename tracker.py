@@ -166,7 +166,8 @@ def parse_journal_line(line):
     elif obj_event == "loadgame": # LoadGame
         return SaveInfo(obj)
     elif obj_event == "missionaccepted": # MissionAccepted
-        return MassacreMission(obj)
+        if obj["Name"] == "Mission_MassacreWing" or obj["Name"] == "Mission_Massacre":
+            return MassacreMission(obj)
     elif obj_event == "bounty": # Bounty
         return Bounty(obj)
     elif obj_event == "shutdown": # Shutdown
@@ -199,9 +200,7 @@ def main():
                         draw_screen(save_info, mission_log)
                     elif ret == "shutdown": # DEBUG
                         print("\n\nSHUTDOWN DETECTED - GOODBYE!")
-                    else:
-                        pass
-                    
+    
     except IOError:
         print("Error opening journal file!")
 
