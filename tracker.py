@@ -97,17 +97,22 @@ class MissionLog:
         facitons_unique.sort()
         return facitons_unique
 
-    # Calculate the total kills required to complete all stacked missions
-    def get_required_kills(self):
-        kills_by_faction = {}
+    # Get the total number of kills required by each sub-faction
+    def get_kill_goal_by_faction(self):
+        kill_goal_by_faction = {}
         all_missions = self.active_missions + self.completed_missions
         for mission in all_missions:
-            kills_by_faction[mission.source_faction] = kills_by_faction.get(mission.source_faction, 0) + mission.kill_goal
-        
+            kill_goal_by_faction[mission.source_faction] = kill_goal_by_faction.get(mission.source_faction, 0) + mission.kill_goal
+
+        return kill_goal_by_faction
+
+    # Calculate the total kills required to complete all stacked missions
+    def get_required_kills(self):
+        kill_goal_by_faction = self.get_kill_goal_by_faction()
         max_kills = 0
-        for faction in kills_by_faction:
-            if kills_by_faction[faction] > max_kills:
-                max_kills = kills_by_faction[faction] 
+        for faction in kill_goal_by_faction:
+            if kill_goal_by_faction[faction] > max_kills:
+                max_kills = kill_goal_by_faction[faction] 
         
         return max_kills
 
@@ -128,10 +133,11 @@ def draw_screen(save_info, mission_log):
     print(f"Mission Progress: {len(mission_log.completed_missions)}/{len(mission_log.active_missions + mission_log.completed_missions)}")
     print(f"Mission Kill Progress: {mission_log.current_target_kills}/{mission_log.get_required_kills()}")
     print(f"Total Kills: {mission_log.current_kills}")
-    print(f"Total Bounties: {mission_log.total_bounties} CR")
-    print(f"\n\nSource Factions:")
-    for faction in mission_log.get_unique_factions():
-        print(f"    - {faction}")
+    print(f"Total Bounties: ~{mission_log.total_bounties * 4:,d} CR") # ~x4 due to Journal File not accurately displaying re-balanced bounty values (HUD value vs Transaction value)
+    print(f"Maximum Payout: {sum([mission.reward for mission in mission_log.completed_missions + mission_log.active_missions]):,d} CR")
+    print(f"\n\nKills By Source Faction:")
+    for faction, kill_goal in mission_log.get_kill_goal_by_faction().items():
+        print(f"    - {faction} ({kill_goal})")
 
 
 # Find the currently active journal file
@@ -166,7 +172,7 @@ def parse_journal_line(line):
     elif obj_event == "loadgame": # LoadGame
         return SaveInfo(obj)
     elif obj_event == "missionaccepted": # MissionAccepted
-        if obj["Name"] == "Mission_MassacreWing" or obj["Name"] == "Mission_Massacre":
+        if obj["Name"] == "Mission_MassacreWing" or obj["Name"] == "Mission_Massacre": # TODO: Do I want to do this check twice?
             return MassacreMission(obj)
     elif obj_event == "bounty": # Bounty
         return Bounty(obj)
